@@ -9,7 +9,19 @@ from importlib.metadata import PackageNotFoundError, version
 # Must be set before fastmcp.settings is imported (it reads env vars at creation time).
 os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")
 
-from dotenv import dotenv_values, load_dotenv
+# D12: allow operators to disable .env file loading entirely.  The plugin sets
+# this so that a ~/.env on the uv tool search path cannot inject
+# READ_ONLY_MODE=false, proxy settings, or other security-sensitive overrides.
+# Checked before dotenv is imported so neither the import-time dotenv_values()
+# call nor the load_dotenv() call in main() runs when the flag is set.
+_DISABLE_DOTENV = os.getenv("MCP_ATLASSIAN_DISABLE_DOTENV", "").lower() in (
+    "true",
+    "1",
+    "yes",
+    "on",
+)
+
+from dotenv import dotenv_values, load_dotenv  # noqa: E402
 
 # Inject truststore BEFORE any requests/urllib3 imports to ensure the
 # OS-native trust store (e.g. Windows Certificate Store) is used for
@@ -17,9 +29,10 @@ from dotenv import dotenv_values, load_dotenv
 # This must happen before 'requests.adapters' is imported because that
 # module creates a preloaded SSLContext at import time.
 # Read from .env via dotenv_values() since load_dotenv() hasn't run yet.
+_dotenv_vals = {} if _DISABLE_DOTENV else dotenv_values()
 if os.getenv(
     "MCP_ATLASSIAN_USE_SYSTEM_TRUSTSTORE",
-    dotenv_values().get("MCP_ATLASSIAN_USE_SYSTEM_TRUSTSTORE") or "true",
+    _dotenv_vals.get("MCP_ATLASSIAN_USE_SYSTEM_TRUSTSTORE") or "true",
 ).lower() not in ("false", "0", "no"):
     try:
         import truststore
@@ -31,8 +44,8 @@ if os.getenv(
             exc_info=True,
         )
 
-import click
-from fastmcp import settings as fastmcp_settings
+import click  # noqa: E402
+from fastmcp import settings as fastmcp_settings  # noqa: E402
 
 # Fix high CPU usage on Windows - use SelectorEventLoop instead of ProactorEventLoop
 # ProactorEventLoop uses IOCP which can cause busy-waiting when combined with
@@ -41,12 +54,12 @@ from fastmcp import settings as fastmcp_settings
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from mcp_atlassian.utils.env import is_env_truthy
-from mcp_atlassian.utils.lifecycle import (
+from mcp_atlassian.utils.env import is_env_truthy  # noqa: E402
+from mcp_atlassian.utils.lifecycle import (  # noqa: E402
     ensure_clean_exit,
     setup_signal_handlers,
 )
-from mcp_atlassian.utils.logging import setup_logging
+from mcp_atlassian.utils.logging import setup_logging  # noqa: E402
 
 try:
     __version__ = version("mcp-atlassian")
@@ -118,7 +131,6 @@ async def _run_stdio_with_stdin_guard(run_kwargs: dict[str, object]) -> None:
             raise server_result[0]
 
 
-
 # Invisible/zero-width chars that can be pasted alongside a PAT.
 # Written as chr() calls so the source file stays pure ASCII.
 # BOM=0xFEFF, ZWSP=0x200B, ZWNJ=0x200C, ZWJ=0x200D, word-joiner=0x2060
@@ -140,6 +152,7 @@ def _read_pat_secret(prompt: str) -> str:
         return _sanitize_token(getpass.getpass(prompt))
     print("Reading token from stdin (input is not hidden).", file=sys.stderr)
     return _sanitize_token(sys.stdin.readline())
+
 
 @click.version_option(__version__, prog_name="mcp-atlassian")
 @click.command()
@@ -336,7 +349,9 @@ def main(
             != click.core.ParameterSource.DEFAULT
         )
 
-    if env_file:
+    if _DISABLE_DOTENV:
+        logger.debug("MCP_ATLASSIAN_DISABLE_DOTENV is set — skipping .env loading")
+    elif env_file:
         logger.debug(f"Loading environment from file: {env_file}")
         load_dotenv(env_file, override=True)
     else:
@@ -430,7 +445,6 @@ def main(
         except keyring.errors.KeyringError as exc:
             print(f"Keyring error: {type(exc).__name__}", file=sys.stderr)
             sys.exit(1)
-
 
     click_ctx = click.get_current_context(silent=True)
 
