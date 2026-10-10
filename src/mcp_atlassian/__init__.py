@@ -5,6 +5,10 @@ import sys
 import threading
 from importlib.metadata import PackageNotFoundError, version
 
+# D5: disable FastMCP's startup update check unless the user explicitly opted in.
+# Must be set before fastmcp.settings is imported (it reads env vars at creation time).
+os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")
+
 from dotenv import dotenv_values, load_dotenv
 
 # Inject truststore BEFORE any requests/urllib3 imports to ensure the
