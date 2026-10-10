@@ -121,3 +121,19 @@ mcp-atlassian: no Jira credentials found for <normalized-url>. Store your token 
 **Re-applying on upstream upgrade:**
 1. Check that the D13 block in `main()` is still placed after all CLI-arg env-var assignments and before `from mcp_atlassian.servers import main_mcp`.
 2. Run `uv run pytest tests/unit/test_no_creds_exit.py`.
+
+---
+
+## Patch 6 — D14: READ_ONLY_MODE set-but-empty → read-only
+
+**Linear:** D14 (plan item)
+**Files changed:**
+- `src/mcp_atlassian/utils/io.py` — rewrites `is_read_only_mode()` with a three-way env-var check; logs WARNING when the fail-safe fires
+- `tests/unit/test_read_only_empty_env.py` — 6 tests (5 unit + 1 e2e through `Client(main_mcp)`)
+
+**Rationale:**
+When a plugin writes `READ_ONLY_MODE=${user_config.read_only:-}` and the user has not configured the option, the shell expands the variable to an empty string. `os.getenv("READ_ONLY_MODE", "false")` returns `""` (not `"false"`) when the var is SET to empty, so the old `is_env_extended_truthy` check returned False — all 13 tools appeared instead of the 8 read-only default. The fix distinguishes three states: UNSET (→ False, preserves upstream default), SET-but-empty/whitespace (→ True, fail-safe), and SET-with-value (→ parsed truthy/falsy). A WARNING is logged when the fail-safe fires: `"READ_ONLY_MODE is set but empty; defaulting to read-only"`. The `--read-only` CLI path is unaffected because Click always writes `"true"` or `"false"` (never empty) into `os.environ`.
+
+**Re-applying on upstream upgrade:**
+1. Check `utils/io.py` — if upstream rewrote `is_read_only_mode()` with its own logic, merge the three-way distinction in.
+2. Run `uv run pytest tests/unit/test_read_only_empty_env.py`.

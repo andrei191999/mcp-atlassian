@@ -1,9 +1,10 @@
 """I/O utility functions for MCP Atlassian."""
 
+import logging
 import os
 from pathlib import Path
 
-from mcp_atlassian.utils.env import is_env_extended_truthy
+logger = logging.getLogger("mcp-atlassian.utils.io")
 
 
 def is_read_only_mode() -> bool:
@@ -14,10 +15,23 @@ def is_read_only_mode() -> bool:
     production Atlassian instances where you want to prevent accidental
     modifications.
 
+    Three-way distinction on READ_ONLY_MODE:
+    - UNSET (not in os.environ): False — preserves upstream default.
+    - SET but empty or whitespace-only: True — fail-safe for unconfigured plugins
+      that expand ``READ_ONLY_MODE=${unset_var:-}`` to an empty string.
+    - SET with an explicit value: parsed as a truthy/falsy string.
+
     Returns:
         True if read-only mode is enabled, False otherwise
     """
-    return is_env_extended_truthy("READ_ONLY_MODE", "false")
+    raw = os.environ.get("READ_ONLY_MODE")
+    if raw is None:
+        return False
+    stripped = raw.strip()
+    if not stripped:
+        logger.warning("READ_ONLY_MODE is set but empty; defaulting to read-only")
+        return True
+    return stripped.lower() in ("true", "1", "yes", "y", "on")
 
 
 def validate_safe_path(
