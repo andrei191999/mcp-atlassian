@@ -84,3 +84,40 @@ FastMCP 3.4.x checks for updates and prints a banner on every startup (`check_fo
 1. Check `__init__.py` for any new `load_dotenv()` or `dotenv_values()` calls introduced upstream and gate them on `_DISABLE_DOTENV`.
 2. Verify the loopback set `{"localhost","127.0.0.1","::1"}` in `utils/environment.py` is still appropriate.
 3. Run `uv run pytest tests/unit/test_disable_dotenv.py tests/unit/jira/test_keyring_pat.py tests/unit/servers/test_blocker_e2e.py`.
+
+---
+
+## Patch 5 — D13: stdio no-credentials exit
+
+**Linear:** D13 (plan item)
+**Files changed:**
+- `src/mcp_atlassian/__init__.py` — `_check_jira_stdio_creds()` helper + call in `main()` after CLI env vars are applied, before the server is imported
+- `tests/unit/test_no_creds_exit.py` — 7 tests
+
+**Exit condition:** transport is `stdio` AND `JIRA_URL` is non-empty AND `get_available_services()` returns nothing truthy for *either* jira or confluence. A Confluence-only setup (Jira URL set but only Confluence credentials present) does NOT trigger the exit. HTTP/SSE transports and header-based multi-tenant setups are unaffected.
+
+**Message variants:**
+
+Atlassian Cloud URL (no PAT suggestion — `--store-jira-pat` rejects Cloud):
+```
+mcp-atlassian: no Jira credentials found for <url>. Set JIRA_USERNAME and JIRA_API_TOKEN (Atlassian Cloud).
+```
+
+Env auth vars partially set (names vars, never values):
+```
+mcp-atlassian: incomplete Jira credentials in environment (<VAR1>, <VAR2>).
+```
+
+Server/DC, keyring backend raises KeyringError:
+```
+mcp-atlassian: keyring unavailable (<ErrorType>). Store your token with: mcp-atlassian --store-jira-pat --jira-url <url>
+```
+
+Server/DC, no token (README-quoted exact text):
+```
+mcp-atlassian: no Jira credentials found for <normalized-url>. Store your token with: mcp-atlassian --store-jira-pat --jira-url <url>
+```
+
+**Re-applying on upstream upgrade:**
+1. Check that the D13 block in `main()` is still placed after all CLI-arg env-var assignments and before `from mcp_atlassian.servers import main_mcp`.
+2. Run `uv run pytest tests/unit/test_no_creds_exit.py`.

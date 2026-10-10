@@ -144,6 +144,84 @@ def _sanitize_token(raw: str) -> str:
     return raw.translate(_INVISIBLE_CHARS).strip()
 
 
+def _check_jira_stdio_creds(jira_url: str) -> str | None:
+    """Return an error message if no Atlassian service can start, else None.
+
+    Called only for stdio transport when JIRA_URL is non-empty.
+    Returns None (no exit) when at least one service — Jira or Confluence —
+    is configured, so mixed setups (Confluence-only, multi-service) are
+    unaffected.
+
+    Message variants for the Jira-not-configured case:
+    - Atlassian Cloud URL: suggests JIRA_USERNAME / JIRA_API_TOKEN.
+    - Env auth vars partially set: names the vars set, never their values.
+    - Server/DC, KeyringError: names the error type.
+    - Server/DC, no token: suggests --store-jira-pat (README-quoted exact text).
+    """
+    from mcp_atlassian.utils.environment import (
+        JIRA_PAT_KEYRING_SERVICE,
+        get_available_services,
+        jira_keyring_username,
+    )
+    from mcp_atlassian.utils.urls import is_atlassian_cloud_url
+
+    services = get_available_services()
+    # Do not exit when at least one service is available — the server is useful.
+    if services.get("jira") or services.get("confluence"):
+        return None
+
+    normalized = jira_keyring_username(jira_url)
+
+    # Auth vars that form pairs / triplets: their presence without a complete
+    # combination signals a misconfiguration.  JIRA_PERSONAL_TOKEN and
+    # JIRA_CLIENT_CERT are self-contained for DC and are handled below.
+    _pair_vars = (
+        "ATLASSIAN_OAUTH_ACCESS_TOKEN",
+        "ATLASSIAN_OAUTH_CLIENT_ID",
+        "ATLASSIAN_OAUTH_CLIENT_SECRET",
+        "ATLASSIAN_OAUTH_CLOUD_ID",
+        "JIRA_API_TOKEN",
+        "JIRA_OAUTH_ACCESS_TOKEN",
+        "JIRA_OAUTH_CLIENT_ID",
+        "JIRA_OAUTH_CLIENT_SECRET",
+        "JIRA_USERNAME",
+    )
+    _set_vars = sorted(v for v in _pair_vars if os.getenv(v))
+    if _set_vars:
+        return (
+            f"mcp-atlassian: incomplete Jira credentials in environment "
+            f"({', '.join(_set_vars)})."
+        )
+
+    # No env-based auth configured at all.
+    if is_atlassian_cloud_url(jira_url):
+        return (
+            f"mcp-atlassian: no Jira credentials found for {jira_url}. "
+            f"Set JIRA_USERNAME and JIRA_API_TOKEN (Atlassian Cloud)."
+        )
+
+    # Server/DC: re-probe the keyring to distinguish a missing token from a
+    # broken backend.  Catch any Exception (not just KeyringError) so that
+    # ImportError, RuntimeError, or other backend failures are handled the same
+    # way — type name only, never str(exc), to avoid leaking secret values.
+    try:
+        import keyring
+
+        keyring.get_password(JIRA_PAT_KEYRING_SERVICE, normalized)
+    except Exception as exc:
+        return (
+            f"mcp-atlassian: keyring unavailable ({type(exc).__name__}). "
+            f"Store your token with: mcp-atlassian --store-jira-pat"
+            f" --jira-url {jira_url}"
+        )
+
+    return (
+        f"mcp-atlassian: no Jira credentials found for {normalized}. "
+        f"Store your token with: mcp-atlassian --store-jira-pat"
+        f" --jira-url {jira_url}"
+    )
+
+
 def _read_pat_secret(prompt: str) -> str:
     """Read a secret: hidden prompt on TTY, one sanitized stdin line when piped."""
     import getpass
@@ -537,6 +615,17 @@ def main(
         os.environ["JIRA_SSL_VERIFY"] = str(jira_ssl_verify).lower()
     if click_ctx and was_option_provided(click_ctx, "jira_projects_filter"):
         os.environ["JIRA_PROJECTS_FILTER"] = jira_projects_filter
+
+    # D13: for stdio transport, exit early with a clear message when JIRA_URL is
+    # set but no credentials are found.  HTTP transports and multi-tenant
+    # (header-based) setups are intentionally unaffected.
+    if final_transport == "stdio":
+        _jira_url_for_check = os.getenv("JIRA_URL", "").strip()
+        if _jira_url_for_check:
+            _creds_err = _check_jira_stdio_creds(_jira_url_for_check)
+            if _creds_err:
+                print(_creds_err, file=sys.stderr)
+                sys.exit(1)
 
     from mcp_atlassian.servers import main_mcp
 
