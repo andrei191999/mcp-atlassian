@@ -114,6 +114,29 @@ async def _run_stdio_with_stdin_guard(run_kwargs: dict[str, object]) -> None:
             raise server_result[0]
 
 
+
+# Invisible/zero-width chars that can be pasted alongside a PAT.
+# Written as chr() calls so the source file stays pure ASCII.
+# BOM=0xFEFF, ZWSP=0x200B, ZWNJ=0x200C, ZWJ=0x200D, word-joiner=0x2060
+_INVISIBLE_CHARS = str.maketrans(
+    "", "", "".join(chr(c) for c in (0xFEFF, 0x200B, 0x200C, 0x200D, 0x2060))
+)
+
+
+def _sanitize_token(raw: str) -> str:
+    """Strip leading/trailing whitespace and invisible characters from a PAT."""
+    return raw.translate(_INVISIBLE_CHARS).strip()
+
+
+def _read_pat_secret(prompt: str) -> str:
+    """Read a secret: hidden prompt on TTY, one sanitized stdin line when piped."""
+    import getpass
+
+    if sys.stdin.isatty():
+        return _sanitize_token(getpass.getpass(prompt))
+    print("Reading token from stdin (input is not hidden).", file=sys.stderr)
+    return _sanitize_token(sys.stdin.readline())
+
 @click.version_option(__version__, prog_name="mcp-atlassian")
 @click.command()
 @click.option(
@@ -129,6 +152,11 @@ async def _run_stdio_with_stdin_guard(run_kwargs: dict[str, object]) -> None:
     "--oauth-setup",
     is_flag=True,
     help="Run OAuth 2.0 setup wizard for Atlassian Cloud",
+)
+@click.option(
+    "--store-jira-pat",
+    is_flag=True,
+    help="Store the Jira Personal Access Token in the OS keyring and exit.",
 )
 @click.option(
     "--transport",
@@ -236,6 +264,7 @@ def main(
     verbose: int,
     env_file: str | None,
     oauth_setup: bool,
+    store_jira_pat: bool,
     transport: str,
     stateless: bool,
     port: int,
@@ -321,6 +350,83 @@ def main(
         except ImportError:
             logger.error("Failed to import OAuth setup module.")
             sys.exit(1)
+
+    if store_jira_pat:
+        from urllib.parse import urlparse
+
+        import keyring
+        import keyring.errors
+
+        from mcp_atlassian.utils.environment import (
+            JIRA_PAT_KEYRING_SERVICE,
+            jira_keyring_username,
+        )
+        from mcp_atlassian.utils.urls import is_atlassian_cloud_url
+
+        # Resolve and validate URL
+        pat_url_raw = jira_url or os.getenv("JIRA_URL") or ""
+        if not pat_url_raw:
+            print(
+                "Error: Jira URL is required. Use --jira-url or set JIRA_URL.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _parsed = urlparse(pat_url_raw.strip())
+        _host = _parsed.hostname or ""
+        _is_loopback = _host in ("localhost", "127.0.0.1", "::1")
+        if _parsed.scheme == "http" and not _is_loopback:
+            print(
+                "Error: http is only allowed for loopback hosts (localhost, 127.0.0.1, ::1); "
+                "use https for remote servers.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if _parsed.scheme not in ("http", "https"):
+            print(
+                f"Error: URL scheme must be http or https (got {_parsed.scheme!r}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if not _parsed.netloc:
+            print("Error: URL must include a hostname.", file=sys.stderr)
+            sys.exit(1)
+        if "@" in _parsed.netloc:
+            print(
+                "Error: URL must not embed credentials (no '@' in hostname).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if is_atlassian_cloud_url(pat_url_raw):
+            print(
+                "Error: Jira Cloud does not use a PAT stored in the OS keyring; "
+                "use JIRA_USERNAME + JIRA_API_TOKEN instead.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        pat_url_key = jira_keyring_username(pat_url_raw)
+        if not pat_url_key:
+            print("Error: URL is empty after normalisation.", file=sys.stderr)
+            sys.exit(1)
+
+        # Read token: hidden prompt on TTY, one stdin line when piped.
+        # Extracted to _read_pat_secret for unit-test patchability.
+        token = _read_pat_secret("Jira personal access token: ")
+
+        if not token:
+            print("Error: token cannot be empty.", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            keyring.set_password(JIRA_PAT_KEYRING_SERVICE, pat_url_key, token)
+            print(
+                f"Stored Jira PAT for {pat_url_key} in the OS keyring.",
+                file=sys.stderr,
+            )
+            sys.exit(0)
+        except keyring.errors.KeyringError as exc:
+            print(f"Keyring error: {type(exc).__name__}", file=sys.stderr)
+            sys.exit(1)
+
 
     click_ctx = click.get_current_context(silent=True)
 

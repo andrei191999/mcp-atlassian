@@ -12,6 +12,11 @@ from ..utils.env import (
     is_env_ssl_verify,
     is_env_truthy,
 )
+from ..utils.environment import (
+    JIRA_PAT_KEYRING_SERVICE,
+    get_jira_pat_from_keyring,
+    jira_keyring_username,
+)
 from ..utils.oauth import (
     BYOAccessTokenOAuthConfig,
     OAuthConfig,
@@ -166,7 +171,9 @@ class JiraConfig:
     ]  # Authentication type
     username: str | None = None  # Email or username (Cloud)
     api_token: str | None = None  # API token (Cloud)
-    personal_token: str | None = None  # Personal access token (Server/DC)
+    personal_token: str | None = field(
+        default=None, repr=False
+    )  # Personal access token (Server/DC)
     oauth_config: OAuthConfig | BYOAccessTokenOAuthConfig | None = None
     ssl_verify: bool = True  # Whether to verify SSL certificates
     projects_filter: str | None = None  # List of project keys to filter searches
@@ -258,6 +265,29 @@ class JiraConfig:
         api_token = os.getenv("JIRA_API_TOKEN")
         personal_token = os.getenv("JIRA_PERSONAL_TOKEN")
         client_cert_env = os.getenv("JIRA_CLIENT_CERT")
+
+        # UNI-336: when the env var is empty (plugin sets it to "" in normal use)
+        # and basic auth is not fully configured, fall back to the OS keyring.
+        # Only relevant for Server/DC PAT auth; log once with source information.
+        _cfg_logger = logging.getLogger("mcp-atlassian.jira.config")
+        _keyring_tried = False
+        if not personal_token and url and not (username and api_token):
+            _keyring_tried = True
+            personal_token = get_jira_pat_from_keyring(url)
+            if personal_token:
+                _cfg_logger.info("Jira PAT source: keyring")
+            else:
+                _keyring_url = jira_keyring_username(url)
+                _cfg_logger.warning(
+                    "No Jira PAT found in JIRA_PERSONAL_TOKEN or the OS keyring "
+                    "(service=%s, username=%s). "
+                    "Run: mcp-atlassian --store-jira-pat --jira-url %s",
+                    JIRA_PAT_KEYRING_SERVICE,
+                    _keyring_url,
+                    _keyring_url,
+                )
+        elif personal_token:
+            _cfg_logger.info("Jira PAT source: env")
 
         # Check for OAuth configuration (pass service info for DC detection)
         oauth_config = get_oauth_config_from_env(service_url=url, service_type="jira")
