@@ -43,6 +43,10 @@ jira_mcp = ErrorPreservingFastMCP(
     instructions="Provides tools for interacting with Atlassian Jira.",
 )
 
+# UNI-335: every write-tagged tool carries this meta so Claude Code always
+# prompts the user before executing a write, including in bypass mode.
+WRITE_TOOL_META: dict[str, bool] = {"anthropic/requiresUserInteraction": True}
+
 _GET_ISSUE_INCLUDE_SECTIONS = frozenset(
     {
         "remote_links",
@@ -465,6 +469,7 @@ async def get_issue_watchers(
         "title": "Add Issue Watcher",
         "destructiveHint": False,
     },
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def add_watcher(
@@ -510,6 +515,7 @@ async def add_watcher(
         "title": "Remove Issue Watcher",
         "destructiveHint": True,
     },
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def remove_watcher(
@@ -1706,6 +1712,7 @@ async def get_link_types(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Create Issue", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_issue(
@@ -1820,6 +1827,7 @@ async def create_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Batch Create Issues", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def batch_create_issues(
@@ -1973,6 +1981,7 @@ async def batch_get_changelogs(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Update Issue", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def update_issue(
@@ -2129,6 +2138,7 @@ async def update_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Assign Issue", "readOnlyHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def assign_issue(
@@ -2196,6 +2206,7 @@ async def assign_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Delete Issue", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def delete_issue(
@@ -2230,6 +2241,7 @@ async def delete_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_issues"},
     annotations={"title": "Move Issue to Project", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def move_issue(
@@ -2302,6 +2314,7 @@ async def move_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_comments"},
     annotations={"title": "Add Comment", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def add_comment(
@@ -2388,6 +2401,7 @@ async def add_comment(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_comments"},
     annotations={"title": "Edit Comment", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def edit_comment(
@@ -2435,6 +2449,7 @@ async def edit_comment(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_worklog"},
     annotations={"title": "Add Worklog", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def add_worklog(
@@ -2511,6 +2526,7 @@ async def add_worklog(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_links"},
     annotations={"title": "Link to Epic", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def link_to_epic(
@@ -2555,6 +2571,7 @@ async def link_to_epic(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_links"},
     annotations={"title": "Create Issue Link", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_issue_link(
@@ -2651,6 +2668,7 @@ async def create_issue_link(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_links"},
     annotations={"title": "Create Remote Issue Link", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_remote_issue_link(
@@ -2739,6 +2757,7 @@ async def create_remote_issue_link(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_links"},
     annotations={"title": "Remove Issue Link", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def remove_issue_link(
@@ -2768,6 +2787,7 @@ async def remove_issue_link(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_transitions"},
     annotations={"title": "Transition Issue", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def transition_issue(
@@ -2854,6 +2874,7 @@ async def transition_issue(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_agile"},
     annotations={"title": "Create Sprint", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_sprint(
@@ -2900,6 +2921,7 @@ async def create_sprint(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_agile"},
     annotations={"title": "Update Sprint", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def update_sprint(
@@ -2961,6 +2983,7 @@ async def update_sprint(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_agile"},
     annotations={"title": "Add Issues to Sprint", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def add_issues_to_sprint(
@@ -2998,6 +3021,7 @@ async def add_issues_to_sprint(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_agile"},
     annotations={"title": "Move Issues to Backlog", "readOnlyHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def move_issues_to_backlog(
@@ -3581,6 +3605,7 @@ async def get_request_type_fields(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_service_desk"},
     annotations={"title": "Create Customer Request", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_customer_request(
@@ -3680,6 +3705,7 @@ async def create_customer_request(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_projects"},
     annotations={"title": "Create Version", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def create_version(
@@ -3738,6 +3764,7 @@ async def create_version(
     name="batch_create_versions",
     tags={"jira", "write", "toolset:jira_projects"},
     annotations={"title": "Batch Create Versions", "destructiveHint": False},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def batch_create_versions(
@@ -3821,6 +3848,7 @@ async def batch_create_versions(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_projects"},
     annotations={"title": "Update Version", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def update_version(
@@ -4019,6 +4047,7 @@ async def get_proforma_form_details(
 @jira_mcp.tool(
     tags={"jira", "write", "toolset:jira_forms"},
     annotations={"title": "Update Form Answers", "destructiveHint": True},
+    meta=WRITE_TOOL_META,
 )
 @check_write_access
 async def update_proforma_form_answers(
