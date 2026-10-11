@@ -94,10 +94,10 @@ jobs:
         env:
           TAG: ${{ steps.tag.outputs.value }}
         run: |
-          mkdir -p /tmp/wheel-build
-          git archive "$TAG" | tar -x -C /tmp/wheel-build
+          git worktree add /tmp/wheel-build "$TAG"
           cd /tmp/wheel-build
           uv build --wheel
+          git worktree remove /tmp/wheel-build --force
 
       - name: Check tag version
         env:
