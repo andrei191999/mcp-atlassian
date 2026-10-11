@@ -52,16 +52,6 @@ jobs:
           python -m doctest scripts/upd_check_junit.py
           python -m doctest scripts/upd_check_tag_version.py
 
-      - name: Inject synthetic failure (AC6 sabotage)
-        run: |
-          cat > junit.xml <<'ENDJUNIT'
-          <?xml version="1.0" encoding="utf-8"?>
-          <testsuites><testsuite name="pytest" tests="1" errors="0" failures="1" skipped="0">
-          <testcase classname="tests.unit.test_sabotage_ac6" name="test_unlisted_failure">
-          <failure message="AC6 synthetic unlisted failure">sabotage</failure>
-          </testcase></testsuite></testsuites>
-          ENDJUNIT
-
       - name: Check known failures
         run: |
           python scripts/upd_check_junit.py \
