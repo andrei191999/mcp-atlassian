@@ -145,7 +145,12 @@ def _sanitize_token(raw: str) -> str:
 
 
 def _safe_url_for_message(url: str) -> str:
-    """Return scheme://host[:port] only, stripping credentials, path, and control chars."""
+    """Return scheme://host[:port]/path only, stripping userinfo, query, fragment, and control chars.
+
+    Preserves the path so the --jira-url hint matches the keyring key (which
+    uses jira_keyring_username: strip + rstrip("/")).  Trailing slash is
+    stripped from the path for consistency with that normalization.
+    """
     import urllib.parse
 
     cleaned = "".join(c for c in url if ord(c) >= 32 and ord(c) != 127)
@@ -154,10 +159,9 @@ def _safe_url_for_message(url: str) -> str:
         if not parsed.scheme or not parsed.hostname:
             return "<invalid-url>"
         host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
-        result = f"{parsed.scheme}://{host}"
-        if parsed.port is not None:
-            result += f":{parsed.port}"
-        return result
+        netloc = f"{host}:{parsed.port}" if parsed.port is not None else host
+        path = parsed.path.rstrip("/") if parsed.path else ""
+        return urllib.parse.urlunparse((parsed.scheme, netloc, path, "", "", ""))
     except Exception:
         return "<invalid-url>"
 

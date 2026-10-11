@@ -355,3 +355,26 @@ def test_url_with_credentials_not_leaked():
     stdout = result.stdout.decode("utf-8", errors="replace")
     assert "SECRET" not in stderr, f"Secret leaked to stderr: {stderr!r}"
     assert "SECRET" not in stdout, f"Secret leaked to stdout: {stdout!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 14: URL with context path → path preserved, secrets stripped (task 2)
+# ---------------------------------------------------------------------------
+
+
+def test_url_with_context_path_preserved_and_secrets_stripped(monkeypatch):
+    """Path is preserved in the --jira-url hint; userinfo/query/fragment are stripped."""
+    _clear_auth(monkeypatch)
+    monkeypatch.setenv("JIRA_URL", "https://user:SECRET@host:8443/jira/?t=SECRET2#frag")
+
+    with patch("keyring.get_password", return_value=None):
+        from mcp_atlassian import _safe_url_for_message  # noqa: PLC0415
+
+        result = _safe_url_for_message(
+            "https://user:SECRET@host:8443/jira/?t=SECRET2#frag"
+        )
+
+    assert result == "https://host:8443/jira", f"Unexpected URL: {result!r}"
+    assert "SECRET" not in result, f"Credential leaked: {result!r}"
+    assert "SECRET2" not in result, f"Query secret leaked: {result!r}"
+    assert "frag" not in result, f"Fragment leaked: {result!r}"
