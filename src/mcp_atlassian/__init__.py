@@ -149,7 +149,8 @@ def _safe_url_for_message(url: str) -> str:
 
     Preserves the path so the --jira-url hint matches the keyring key (which
     uses jira_keyring_username: strip + rstrip("/")).  Trailing slash is
-    stripped from the path for consistency with that normalization.
+    stripped from the path for consistency with that normalization.  Host
+    case is preserved (parsed.hostname lowercases; netloc does not).
     """
     import urllib.parse
 
@@ -158,8 +159,8 @@ def _safe_url_for_message(url: str) -> str:
         parsed = urllib.parse.urlparse(cleaned)
         if not parsed.scheme or not parsed.hostname:
             return "<invalid-url>"
-        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
-        netloc = f"{host}:{parsed.port}" if parsed.port is not None else host
+        # rpartition("@") removes userinfo while keeping case, port, and IPv6 brackets.
+        netloc = parsed.netloc.rpartition("@")[2]
         path = parsed.path.rstrip("/") if parsed.path else ""
         return urllib.parse.urlunparse((parsed.scheme, netloc, path, "", "", ""))
     except Exception:

@@ -378,3 +378,22 @@ def test_url_with_context_path_preserved_and_secrets_stripped(monkeypatch):
     assert "SECRET" not in result, f"Credential leaked: {result!r}"
     assert "SECRET2" not in result, f"Query secret leaked: {result!r}"
     assert "frag" not in result, f"Fragment leaked: {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 15: mixed-case hostname preserved (keyring key uses raw URL, not lowercase)
+# ---------------------------------------------------------------------------
+
+
+def test_url_with_mixed_case_host_preserved(monkeypatch):
+    """Mixed-case hostname preserved — parsed.netloc keeps case; parsed.hostname lowercases."""
+    _clear_auth(monkeypatch)
+
+    from mcp_atlassian import _safe_url_for_message  # noqa: PLC0415
+
+    result = _safe_url_for_message(
+        "https://user:SECRET@Tickets.Example.com:8443/jira/?t=S2#frag"
+    )
+
+    assert result == "https://Tickets.Example.com:8443/jira", f"Unexpected: {result!r}"
+    assert "SECRET" not in result
