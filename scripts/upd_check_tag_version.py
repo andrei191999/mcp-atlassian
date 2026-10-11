@@ -8,7 +8,8 @@ Usage::
 Arguments:
 
 - *tag*: git tag string (e.g., ``v0.23.1.post2``)
-- *wheel_path*: path to a built wheel file (e.g., ``dist/mcp_atlassian-0.23.1.post2-py3-none-any.whl``)
+- *wheel_path*: path to a built wheel file
+  (e.g., ``dist/mcp_atlassian-0.23.1.post2-py3-none-any.whl``)
 
 Exit codes:
 
@@ -153,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     wheel_version = extract_version_from_metadata(metadata_text)
     if wheel_version is None:
         print(
-            f"ERROR: Version header not found in METADATA",
+            "ERROR: Version header not found in METADATA",
             file=sys.stderr,
         )
         return 1
