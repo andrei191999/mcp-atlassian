@@ -26,6 +26,8 @@ def check_rc(rc: int) -> bool:
     True
     >>> check_rc(2)
     False
+    >>> check_rc(99)
+    True
     """
     return rc in (0, 1)
 
