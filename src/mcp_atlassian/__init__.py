@@ -153,7 +153,8 @@ def _safe_url_for_message(url: str) -> str:
         parsed = urllib.parse.urlparse(cleaned)
         if not parsed.scheme or not parsed.hostname:
             return "<invalid-url>"
-        result = f"{parsed.scheme}://{parsed.hostname}"
+        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+        result = f"{parsed.scheme}://{host}"
         if parsed.port is not None:
             result += f":{parsed.port}"
         return result
