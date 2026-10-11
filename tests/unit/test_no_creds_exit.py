@@ -5,6 +5,8 @@ import subprocess
 import sys
 from unittest.mock import patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -397,3 +399,47 @@ def test_url_with_mixed_case_host_preserved(monkeypatch):
 
     assert result == "https://Tickets.Example.com:8443/jira", f"Unexpected: {result!r}"
     assert "SECRET" not in result
+
+
+# ---------------------------------------------------------------------------
+# Tests 16-17: edge cases found by Codex diff review
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        # Leading/trailing whitespace stripped (matches jira_keyring_username)
+        ("  https://Host/jira/ ", "https://Host/jira"),
+        # Uppercase scheme preserved (urlsplit lowercases; taken from stripped input)
+        ("HTTPS://Host/jira/", "HTTPS://Host/jira"),
+        # Semicolon params kept in path (urlsplit does not split ;params off)
+        ("https://Host/jira;tenant=acme", "https://Host/jira;tenant=acme"),
+        # U+0085 NEL is a str.splitlines() line break; isprintable() strips it
+        ("http://host\x85evil/path", "http://hostevil/path"),
+    ],
+)
+def test_safe_url_for_message_edge_cases(monkeypatch, url, expected):
+    """_safe_url_for_message handles whitespace, scheme case, ;params, and Unicode line breaks."""
+    _clear_auth(monkeypatch)
+    from mcp_atlassian import _safe_url_for_message  # noqa: PLC0415
+
+    assert _safe_url_for_message(url) == expected
+
+
+@pytest.mark.parametrize(
+    "clean_url",
+    [
+        "https://Host/jira",
+        "https://Host:8443/jira",
+        "https://Host/jira;tenant=acme",
+        "http://127.0.0.1:9",
+    ],
+)
+def test_safe_url_matches_keyring_key_for_clean_urls(monkeypatch, clean_url):
+    """For clean URLs _safe_url_for_message == jira_keyring_username (the keyring key)."""
+    _clear_auth(monkeypatch)
+    from mcp_atlassian import _safe_url_for_message  # noqa: PLC0415
+    from mcp_atlassian.utils.environment import jira_keyring_username  # noqa: PLC0415
+
+    assert _safe_url_for_message(clean_url) == jira_keyring_username(clean_url)

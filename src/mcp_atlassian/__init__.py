@@ -145,24 +145,37 @@ def _sanitize_token(raw: str) -> str:
 
 
 def _safe_url_for_message(url: str) -> str:
-    """Return scheme://host[:port]/path only, stripping userinfo, query, fragment, and control chars.
+    """Return scheme://host[:port]/path, stripping userinfo, query, fragment, and control chars.
 
-    Preserves the path so the --jira-url hint matches the keyring key (which
-    uses jira_keyring_username: strip + rstrip("/")).  Trailing slash is
-    stripped from the path for consistency with that normalization.  Host
-    case is preserved (parsed.hostname lowercases; netloc does not).
+    For a clean URL the result equals jira_keyring_username(url)
+    (= url.strip().rstrip("/")).
+
+    Design:
+    - strip() first so leading/trailing whitespace is handled like jira_keyring_username.
+    - c.isprintable() drops all Cc/Zl/Zp chars including U+0085 (NEL), U+2028 (LS),
+      U+2029 (PS) which str.splitlines() treats as line breaks but the simple
+      ord >= 32 filter would let through.
+    - urlsplit instead of urlparse so that ;params in the path are kept (urlparse
+      would split them off, mismatching the keyring key for context-path Jira installs).
+    - Scheme taken from the stripped input, not parsed.scheme, because urlsplit
+      lowercases the scheme (HTTPS:// would become https://).
+    - netloc taken via rpartition("@") to drop userinfo while preserving host case,
+      port, and IPv6 brackets.
     """
     import urllib.parse
 
-    cleaned = "".join(c for c in url if ord(c) >= 32 and ord(c) != 127)
+    stripped = url.strip()
+    cleaned = "".join(c for c in stripped if c.isprintable())
     try:
-        parsed = urllib.parse.urlparse(cleaned)
+        parsed = urllib.parse.urlsplit(cleaned)
         if not parsed.scheme or not parsed.hostname:
             return "<invalid-url>"
-        # rpartition("@") removes userinfo while keeping case, port, and IPv6 brackets.
+        # Preserve original scheme case — urlsplit lowercases it.
+        scheme = cleaned[: cleaned.index("://")]
+        # Drop userinfo; keep host case, port, and IPv6 brackets.
         netloc = parsed.netloc.rpartition("@")[2]
         path = parsed.path.rstrip("/") if parsed.path else ""
-        return urllib.parse.urlunparse((parsed.scheme, netloc, path, "", "", ""))
+        return urllib.parse.urlunsplit((scheme, netloc, path, "", ""))
     except Exception:
         return "<invalid-url>"
 
