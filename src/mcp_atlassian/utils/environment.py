@@ -144,7 +144,8 @@ def _check_service_auth(
                 service_name,
             )
             return True
-        pat = os.getenv(pat_env)
+        _raw_pat = os.getenv(pat_env)
+        pat = _raw_pat.strip() if _raw_pat else None
         # For Jira, also fall back to the OS keyring when the env var is empty.
         # Confluence keyring support is out of scope and stays unchanged.
         if not pat and service_name == "Jira" and service_url:

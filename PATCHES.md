@@ -137,3 +137,21 @@ When a plugin writes `READ_ONLY_MODE=${user_config.read_only:-}` and the user ha
 **Re-applying on upstream upgrade:**
 1. Check `utils/io.py` — if upstream rewrote `is_read_only_mode()` with its own logic, merge the three-way distinction in.
 2. Run `uv run pytest tests/unit/test_read_only_empty_env.py`.
+
+---
+
+## Patch 7 — D14b / UNI-336 follow-up: whitespace JIRA_PERSONAL_TOKEN treated as unset
+
+**Linear:** UNI-336 (follow-up)
+**Files changed:**
+- `src/mcp_atlassian/utils/environment.py` — strip whitespace from env var before truthy check in `_check_service_auth()`
+- `src/mcp_atlassian/jira/config.py` — strip whitespace from `JIRA_PERSONAL_TOKEN` in `from_env()` before keyring-fallback branch
+- `tests/unit/test_whitespace_pat.py` — 3 tests (keyring fallback, D13 subprocess exit, JiraConfig.from_env keyring)
+
+**Rationale:**
+The plugin may expand `JIRA_PERSONAL_TOKEN` to a whitespace-only string (e.g. `"   "`) rather than empty. Python's truthiness check treats any non-empty string as truthy, so the keyring fallback at `if not pat and service_name == "Jira"` was bypassed and the D13 early-exit guard never fired — the server appeared configured but failed on the first real API call. The fix strips whitespace before the truthy check in both `_check_service_auth()` (environment.py) and `from_env()` (jira/config.py) so that whitespace-only is equivalent to unset.
+
+**Re-applying on upstream upgrade:**
+1. Check `_check_service_auth()` in `utils/environment.py` — verify `os.getenv(pat_env)` is still stripped before the `if not pat` branch.
+2. Check `from_env()` in `jira/config.py` — verify `os.getenv("JIRA_PERSONAL_TOKEN")` is still stripped before the `if not personal_token` keyring-fallback branch.
+3. Run `uv run pytest tests/unit/test_whitespace_pat.py`.

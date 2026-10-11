@@ -263,7 +263,8 @@ class JiraConfig:
         # Determine authentication type based on available environment variables
         username = os.getenv("JIRA_USERNAME")
         api_token = os.getenv("JIRA_API_TOKEN")
-        personal_token = os.getenv("JIRA_PERSONAL_TOKEN")
+        _raw_personal_token = os.getenv("JIRA_PERSONAL_TOKEN")
+        personal_token = _raw_personal_token.strip() if _raw_personal_token else None
         client_cert_env = os.getenv("JIRA_CLIENT_CERT")
 
         # UNI-336: when the env var is empty (plugin sets it to "" in normal use)
