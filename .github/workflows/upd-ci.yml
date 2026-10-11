@@ -96,7 +96,7 @@ jobs:
         run: |
           git worktree add /tmp/wheel-build "$TAG"
           cd /tmp/wheel-build
-          uv build --wheel
+          uv build --wheel --out-dir /tmp/wheel-dist
           git worktree remove /tmp/wheel-build --force
 
       - name: Check tag version
@@ -105,4 +105,4 @@ jobs:
         run: |
           python /tmp/upd_check_tag_version.py \
             "$TAG" \
-            /tmp/wheel-build/dist/*.whl
+            /tmp/wheel-dist/*.whl
