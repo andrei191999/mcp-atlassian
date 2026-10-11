@@ -78,7 +78,8 @@ def read_metadata_from_wheel(wheel_path: Path) -> str | None:
     Raises ``zipfile.BadZipFile`` if the wheel is not a valid ZIP.
     """
     if not wheel_path.exists():
-        raise FileNotFoundError(f"Wheel file not found: {wheel_path}")
+        msg = f"Wheel file not found: {wheel_path}"
+        raise FileNotFoundError(msg)
 
     try:
         with zipfile.ZipFile(wheel_path, "r") as whl:
@@ -97,9 +98,8 @@ def read_metadata_from_wheel(wheel_path: Path) -> str | None:
 
             return None
     except zipfile.BadZipFile as exc:
-        raise zipfile.BadZipFile(
-            f"Wheel file is not a valid ZIP: {wheel_path}"
-        ) from exc
+        msg = f"Wheel file is not a valid ZIP: {wheel_path}"
+        raise zipfile.BadZipFile(msg) from exc
 
 
 def _run_check(tag: str, wheel_version: str) -> int:

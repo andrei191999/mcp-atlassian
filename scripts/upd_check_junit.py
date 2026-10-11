@@ -88,7 +88,7 @@ def get_testcases(xml_content: str) -> tuple[list, str | None]:
     if not xml_content.strip():
         return [], "junit XML is empty"
     try:
-        root = ET.fromstring(xml_content)
+        root = ET.fromstring(xml_content)  # noqa: S314
     except ET.ParseError as exc:
         return [], f"junit XML is not valid XML: {exc}"
 
