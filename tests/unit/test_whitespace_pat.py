@@ -56,12 +56,13 @@ def test_whitespace_pat_falls_back_to_keyring(monkeypatch):
     with patch(
         "mcp_atlassian.utils.environment.get_jira_pat_from_keyring",
         return_value="dummy-keyring-pat",
-    ):
+    ) as mock_keyring:
         from mcp_atlassian.utils.environment import get_available_services
 
         services = get_available_services()
 
     assert services.get("jira") is True
+    mock_keyring.assert_called_once_with("http://127.0.0.1:9")
 
 
 # ---------------------------------------------------------------------------
@@ -109,10 +110,11 @@ def test_config_from_env_whitespace_pat_uses_keyring():
         patch(
             "mcp_atlassian.jira.config.get_jira_pat_from_keyring",
             return_value="keyring-pat-value",
-        ),
+        ) as mock_keyring,
     ):
         from mcp_atlassian.jira.config import JiraConfig
 
         config = JiraConfig.from_env()
 
     assert config.personal_token == "keyring-pat-value"
+    mock_keyring.assert_called_once_with("https://jira.example.com/")

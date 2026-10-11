@@ -59,6 +59,34 @@ def test_true_string_is_true(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# F7: Parametrized truthy / falsy values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "Y", "on", "ON"]
+)
+def test_truthy_values(monkeypatch, value):
+    """All canonical truthy strings → True."""
+    monkeypatch.setenv("READ_ONLY_MODE", value)
+    from mcp_atlassian.utils.io import is_read_only_mode
+
+    assert is_read_only_mode() is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["false", "False", "FALSE", "0", "no", "NO", "n", "N", "off", "OFF", "random"],
+)
+def test_falsy_explicit_values(monkeypatch, value):
+    """Explicit non-truthy strings → False."""
+    monkeypatch.setenv("READ_ONLY_MODE", value)
+    from mcp_atlassian.utils.io import is_read_only_mode
+
+    assert is_read_only_mode() is False
+
+
+# ---------------------------------------------------------------------------
 # End-to-end: empty READ_ONLY_MODE → only 8 read tools exposed
 # ---------------------------------------------------------------------------
 
@@ -100,6 +128,13 @@ def _make_fake_jira_config() -> MagicMock:
 
 
 @pytest.mark.anyio
+# F4 note: this test uses Client(main_mcp) rather than spawning the CLI subprocess.
+# The CLI's main() only writes READ_ONLY_MODE when --read-only is explicitly provided
+# (was_option_provided check), so READ_ONLY_MODE="" in env is preserved as-is.
+# The server enforces read-only at both list_tools AND call_tool time (via
+# _is_tool_authorized), so the in-process test covers the full security boundary.
+# A subprocess test would require a full MCP JSON-RPC handshake (~30 lines) but
+# would not exercise any code path that this test does not already cover.
 async def test_e2e_empty_read_only_mode_gives_8_read_tools():
     """READ_ONLY_MODE='' + ENABLED_TOOLS=13 → exactly the 8 read tools listed."""
     from fastmcp import Client

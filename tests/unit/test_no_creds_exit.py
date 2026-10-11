@@ -105,7 +105,7 @@ def test_stdio_keyring_token_passes_check(monkeypatch):
 
 
 def test_http_transport_skips_d13_check():
-    """HTTP transport: no D13 check — server does not immediately exit 1."""
+    """HTTP transport: D13 check is skipped — no 'no Jira credentials found' on stderr."""
     proc = subprocess.Popen(
         [sys.executable, "-c", _INVOKE_HTTP],
         stdout=subprocess.PIPE,
@@ -117,13 +117,14 @@ def test_http_transport_skips_d13_check():
         ),
     )
     try:
-        retcode = proc.wait(timeout=4)
-        stderr = proc.stderr.read().decode("utf-8", errors="replace")
-        assert retcode != 1, (
-            f"HTTP transport exited 1 (D13 wrongly applied). stderr: {stderr}"
-        )
-    except subprocess.TimeoutExpired:
-        pass  # Server still running → D13 correctly skipped.
+        try:
+            proc.wait(timeout=2)
+            stderr = proc.stderr.read().decode("utf-8", errors="replace")
+            assert "no Jira credentials found" not in stderr, (
+                f"D13 incorrectly applied to HTTP transport. stderr: {stderr}"
+            )
+        except subprocess.TimeoutExpired:
+            pass  # Server still running — expected for HTTP transport.
     finally:
         proc.kill()
         proc.communicate()
@@ -277,3 +278,80 @@ def test_non_keyring_error_no_secret_leak(monkeypatch):
     assert "RuntimeError" in result, repr(result)
     assert "SECRET-xyz" not in result, f"Secret must not appear in message: {result!r}"
     assert len(result.splitlines()) == 1, f"Message must be one line: {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 11: RuntimeError on FIRST keyring call (from get_available_services)
+# ---------------------------------------------------------------------------
+
+
+def test_keyring_error_on_first_call_no_secret_leak(monkeypatch):
+    """RuntimeError on any keyring call (including first from get_available_services) → caught.
+
+    F3: Tests the try/except around get_available_services() so that if it crashes
+    (e.g. RuntimeError propagating from keyring), the secret is never leaked.
+    """
+    _clear_auth(monkeypatch)
+    monkeypatch.setenv("JIRA_URL", "http://127.0.0.1:9")
+
+    with patch("keyring.get_password", side_effect=RuntimeError("SECRET-xyz")):
+        from mcp_atlassian import _check_jira_stdio_creds  # noqa: PLC0415
+
+        result = _check_jira_stdio_creds("http://127.0.0.1:9")
+
+    assert result is not None, "Expected an error message (not propagated exception)"
+    assert "SECRET-xyz" not in result, f"Secret must not appear in message: {result!r}"
+    assert "RuntimeError" in result, repr(result)
+    assert len(result.splitlines()) == 1, f"Message must be one line: {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# Test 12: URL with embedded newline → still exactly 1 stderr line  (F1+F2)
+# ---------------------------------------------------------------------------
+
+
+def test_url_with_newline_gives_one_stderr_line():
+    """JIRA_URL with embedded newline → sanitized; exactly 1 stderr line on exit 1."""
+    result = subprocess.run(
+        [sys.executable, "-c", _INVOKE],
+        input=b"",
+        capture_output=True,
+        timeout=30,
+        env=_clean_env(
+            JIRA_URL="http://127.0.0.1:9\nmalicious-line",
+            JIRA_PERSONAL_TOKEN="",
+            PYTHON_KEYRING_BACKEND="keyring.backends.null.Keyring",
+        ),
+    )
+    assert result.returncode == 1
+    assert result.stdout == b""
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    assert len(stderr.splitlines()) == 1, (
+        f"Expected exactly 1 stderr line, got:\n{stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 13: URL with embedded credentials → secret never appears on stderr (F1+F2)
+# ---------------------------------------------------------------------------
+
+
+def test_url_with_credentials_not_leaked():
+    """JIRA_URL with embedded credentials → 'SECRET' never appears in output."""
+    result = subprocess.run(
+        [sys.executable, "-c", _INVOKE],
+        input=b"",
+        capture_output=True,
+        timeout=30,
+        env=_clean_env(
+            JIRA_URL="https://user:SECRET@127.0.0.1:9/?t=SECRET2",
+            JIRA_PERSONAL_TOKEN="",
+            PYTHON_KEYRING_BACKEND="keyring.backends.null.Keyring",
+        ),
+    )
+    assert result.returncode == 1
+    assert result.stdout == b""
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    assert "SECRET" not in stderr, f"Secret leaked to stderr: {stderr!r}"
+    assert "SECRET" not in stdout, f"Secret leaked to stdout: {stdout!r}"

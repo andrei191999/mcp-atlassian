@@ -144,6 +144,23 @@ def _sanitize_token(raw: str) -> str:
     return raw.translate(_INVISIBLE_CHARS).strip()
 
 
+def _safe_url_for_message(url: str) -> str:
+    """Return scheme://host[:port] only, stripping credentials, path, and control chars."""
+    import urllib.parse
+
+    cleaned = "".join(c for c in url if ord(c) >= 32 and ord(c) != 127)
+    try:
+        parsed = urllib.parse.urlparse(cleaned)
+        if not parsed.scheme or not parsed.hostname:
+            return "<invalid-url>"
+        result = f"{parsed.scheme}://{parsed.hostname}"
+        if parsed.port is not None:
+            result += f":{parsed.port}"
+        return result
+    except Exception:
+        return "<invalid-url>"
+
+
 def _check_jira_stdio_creds(jira_url: str) -> str | None:
     """Return an error message if no Atlassian service can start, else None.
 
@@ -165,7 +182,14 @@ def _check_jira_stdio_creds(jira_url: str) -> str | None:
     )
     from mcp_atlassian.utils.urls import is_atlassian_cloud_url
 
-    services = get_available_services()
+    try:
+        services = get_available_services()
+    except Exception as exc:
+        return (
+            f"mcp-atlassian: keyring unavailable ({type(exc).__name__}). "
+            f"Store your token with: mcp-atlassian --store-jira-pat"
+            f" --jira-url {_safe_url_for_message(jira_url)}"
+        )
     # Do not exit when at least one service is available — the server is useful.
     if services.get("jira") or services.get("confluence"):
         return None
@@ -196,7 +220,7 @@ def _check_jira_stdio_creds(jira_url: str) -> str | None:
     # No env-based auth configured at all.
     if is_atlassian_cloud_url(jira_url):
         return (
-            f"mcp-atlassian: no Jira credentials found for {jira_url}. "
+            f"mcp-atlassian: no Jira credentials found for {_safe_url_for_message(jira_url)}. "
             f"Set JIRA_USERNAME and JIRA_API_TOKEN (Atlassian Cloud)."
         )
 
@@ -212,13 +236,13 @@ def _check_jira_stdio_creds(jira_url: str) -> str | None:
         return (
             f"mcp-atlassian: keyring unavailable ({type(exc).__name__}). "
             f"Store your token with: mcp-atlassian --store-jira-pat"
-            f" --jira-url {jira_url}"
+            f" --jira-url {_safe_url_for_message(jira_url)}"
         )
 
     return (
-        f"mcp-atlassian: no Jira credentials found for {normalized}. "
+        f"mcp-atlassian: no Jira credentials found for {_safe_url_for_message(normalized)}. "
         f"Store your token with: mcp-atlassian --store-jira-pat"
-        f" --jira-url {jira_url}"
+        f" --jira-url {_safe_url_for_message(jira_url)}"
     )
 
 
