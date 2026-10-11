@@ -155,3 +155,26 @@ The plugin may expand `JIRA_PERSONAL_TOKEN` to a whitespace-only string (e.g. `"
 1. Check `_check_service_auth()` in `utils/environment.py` — verify `os.getenv(pat_env)` is still stripped before the `if not pat` branch.
 2. Check `from_env()` in `jira/config.py` — verify `os.getenv("JIRA_PERSONAL_TOKEN")` is still stripped before the `if not personal_token` keyring-fallback branch.
 3. Run `uv run pytest tests/unit/test_whitespace_pat.py`.
+
+---
+
+## Patch 8 — UNI-361c: UPD CI
+
+**Linear:** UNI-361c
+**Branch:** `upd/ci`
+**Files changed:**
+- `.github/workflows/upd-ci.yml` — CI workflow for fork; replaces all upstream workflows
+- `.github/dependabot.yml` — weekly github-actions updates targeting `upd/v0.23.1`
+- `.github/upd-known-failures.txt` — allowed test failures on Linux CI
+- `scripts/upd_check_junit.py` — validates pytest JUnit XML against known-failures list
+- `scripts/upd_check_tag_version.py` — verifies wheel METADATA version matches git tag
+- `.github/workflows/` — removes all 7 upstream workflows (claude.yml, docker-publish.yml, lint.yml, publish.yml, security.yml, stale.yml, tests.yml)
+
+**Rationale:**
+The upstream repo has 7 CI workflows that cannot be used in the fork context (wrong secrets, upstream-only triggers). This patch replaces them with a single `upd-ci.yml` that runs the pytest suite, gates on a known-failures allowlist, and verifies wheel version on tag pushes. The checker scripts are stdlib-only so they require no extra dependencies beyond what the project already has. The known-failures list is orchestrator-approved before commit, ensuring every listed failure has a documented reason.
+
+**Re-applying on upstream upgrade:**
+1. Rebase `upd/ci` onto the new `upd/v0.23.x` base.
+2. If new upstream workflows are added, delete them and update the `upd-ci.yml` trigger branches if needed.
+3. Re-run `uv run pre-commit run --files .github/workflows/upd-ci.yml scripts/upd_check_junit.py scripts/upd_check_tag_version.py`.
+4. Update `.github/upd-known-failures.txt` if new platform-specific failures appear (requires orchestrator approval).
