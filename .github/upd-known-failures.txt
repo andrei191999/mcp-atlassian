@@ -1,0 +1,3 @@
+# Known failing tests on Linux CI — populated after first run, approved by orchestrator
+# Format: one test ID per line (classname::testname)
+# Lines starting with # are comments; blank lines are ignored
