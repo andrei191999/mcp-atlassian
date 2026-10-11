@@ -152,6 +152,11 @@ def analyze_junit(xml_content: str, known_failures: set[str]) -> tuple[int, list
         classname = tc.get("classname", "")
         name = tc.get("name", "")
         test_id = f"{classname}::{name}" if classname else name
+
+        # Skipped tests are neither passed nor failed
+        if tc.find("skipped") is not None:
+            continue
+
         all_ids.add(test_id)
 
         if tc.find("failure") is not None:
