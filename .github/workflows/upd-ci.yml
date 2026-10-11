@@ -76,11 +76,13 @@ jobs:
 
       - name: Determine tag
         id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$INPUT_TAG" ]]; then
+            echo "value=$INPUT_TAG" >> "$GITHUB_OUTPUT"
           else
             echo "value=v0.23.1.post2" >> "$GITHUB_OUTPUT"
           fi
@@ -89,15 +91,18 @@ jobs:
         run: cp scripts/upd_check_tag_version.py /tmp/upd_check_tag_version.py
 
       - name: Build wheel from tag
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
-          TAG="${{ steps.tag.outputs.value }}"
           mkdir -p /tmp/wheel-build
           git archive "$TAG" | tar -x -C /tmp/wheel-build
           cd /tmp/wheel-build
           uv build --wheel
 
       - name: Check tag version
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
           python /tmp/upd_check_tag_version.py \
-            "${{ steps.tag.outputs.value }}" \
+            "$TAG" \
             /tmp/wheel-build/dist/*.whl
