@@ -84,9 +84,7 @@ def read_metadata_from_wheel(wheel_path: Path) -> str | None:
     try:
         with zipfile.ZipFile(wheel_path, "r") as whl:
             # Find the .dist-info directory
-            dist_info_dirs = [
-                name for name in whl.namelist() if ".dist-info/" in name
-            ]
+            dist_info_dirs = [name for name in whl.namelist() if ".dist-info/" in name]
             if not dist_info_dirs:
                 return None
 
@@ -163,8 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     expected_version = strip_v_prefix(args.tag)
     if not check_version_match(args.tag, wheel_version):
         print(
-            f"ERROR: version mismatch: tag={expected_version}, "
-            f"wheel={wheel_version}",
+            f"ERROR: version mismatch: tag={expected_version}, wheel={wheel_version}",
             file=sys.stderr,
         )
         return 1
