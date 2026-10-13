@@ -6,6 +6,9 @@ from pathlib import Path
 
 logger = logging.getLogger("mcp-atlassian.utils.io")
 
+_FALSY: frozenset[str] = frozenset({"false", "0", "no", "n", "off"})
+_TRUTHY: frozenset[str] = frozenset({"true", "1", "yes", "y", "on"})
+
 
 def is_read_only_mode() -> bool:
     """Check if the server is running in read-only mode.
@@ -31,7 +34,15 @@ def is_read_only_mode() -> bool:
     if not stripped:
         logger.warning("READ_ONLY_MODE is set but empty; defaulting to read-only")
         return True
-    return stripped.lower() in ("true", "1", "yes", "y", "on")
+    lower = stripped.lower()
+    if lower in _FALSY:
+        return False
+    if lower in _TRUTHY:
+        return True
+    logger.warning(
+        "READ_ONLY_MODE has unrecognized value %r; defaulting to read-only", stripped
+    )
+    return True
 
 
 def validate_safe_path(
