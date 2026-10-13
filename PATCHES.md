@@ -178,3 +178,19 @@ The upstream repo has 7 CI workflows that cannot be used in the fork context (wr
 2. If new upstream workflows are added, delete them and update the `upd-ci.yml` trigger branches if needed.
 3. Re-run `uv run pre-commit run --files .github/workflows/upd-ci.yml scripts/upd_check_junit.py scripts/upd_check_tag_version.py`.
 4. Update `.github/upd-known-failures.txt` if new platform-specific failures appear (requires orchestrator approval).
+
+---
+
+## Patch 9 — U-17: READ_ONLY_MODE unrecognised value → read-only (fail-closed)
+
+**Linear:** UNI-361 follow-up (orchestrator decision U-17)
+**Files changed:**
+- `src/mcp_atlassian/utils/io.py` — `is_read_only_mode()` now recognises explicit falsy values (`false/0/no/n/off`) and explicit truthy values (`true/1/yes/y/on`), case-insensitive and trimmed; any other non-empty value returns True and logs a WARNING naming the value
+- `tests/unit/test_read_only_empty_env.py` — tests for each class, including an unexpanded template (`${user_config.read_only}`) and a typo (`ture`)
+
+**Rationale:**
+Patch 6 made set-but-empty fail-safe, but any other unrecognised value (an unexpanded plugin template, a typo) was still parsed as "not truthy" → writes ENABLED. The plugin's safety therefore depended on Claude Code always expanding `READ_ONLY_MODE` correctly. Only an explicit falsy value now enables writes; everything else unrecognised fails closed: `"READ_ONLY_MODE has unrecognized value %r; defaulting to read-only"`. UNSET still returns False (upstream default) and empty/whitespace still returns True (Patch 6).
+
+**Re-applying on upstream upgrade:**
+1. Check `utils/io.py` — keep the explicit `_FALSY`/`_TRUTHY` sets and the fail-closed default on top of Patch 6.
+2. Run `uv run pytest tests/unit/test_read_only_empty_env.py`.
