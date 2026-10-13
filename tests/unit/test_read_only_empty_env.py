@@ -76,14 +76,31 @@ def test_truthy_values(monkeypatch, value):
 
 @pytest.mark.parametrize(
     "value",
-    ["false", "False", "FALSE", "0", "no", "NO", "n", "N", "off", "OFF", "random"],
+    ["false", "False", "FALSE", "0", "no", "NO", "n", "N", "off", "OFF"],
 )
 def test_falsy_explicit_values(monkeypatch, value):
-    """Explicit non-truthy strings → False."""
+    """Explicit recognised-falsy strings → False."""
     monkeypatch.setenv("READ_ONLY_MODE", value)
     from mcp_atlassian.utils.io import is_read_only_mode
 
     assert is_read_only_mode() is False
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["random", "${user_config.read_only}", "ture"],
+)
+def test_unrecognized_value_is_true_with_warning(monkeypatch, caplog, value):
+    """Unrecognised (non-empty, non-whitespace) value → True (fail-closed) + WARNING."""
+    monkeypatch.setenv("READ_ONLY_MODE", value)
+    with caplog.at_level(logging.WARNING):
+        from mcp_atlassian.utils.io import is_read_only_mode
+
+        result = is_read_only_mode()
+    assert result is True
+    assert any("unrecognized" in r.message.lower() for r in caplog.records)
+    # Spec: warning must name the bad value
+    assert any(value in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

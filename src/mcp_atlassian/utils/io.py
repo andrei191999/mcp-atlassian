@@ -6,6 +6,9 @@ from pathlib import Path
 
 logger = logging.getLogger("mcp-atlassian.utils.io")
 
+_FALSY: frozenset[str] = frozenset({"false", "0", "no", "n", "off"})
+_TRUTHY: frozenset[str] = frozenset({"true", "1", "yes", "y", "on"})
+
 
 def is_read_only_mode() -> bool:
     """Check if the server is running in read-only mode.
@@ -15,11 +18,14 @@ def is_read_only_mode() -> bool:
     production Atlassian instances where you want to prevent accidental
     modifications.
 
-    Three-way distinction on READ_ONLY_MODE:
+    Four-way distinction on READ_ONLY_MODE:
     - UNSET (not in os.environ): False — preserves upstream default.
     - SET but empty or whitespace-only: True — fail-safe for unconfigured plugins
       that expand ``READ_ONLY_MODE=${unset_var:-}`` to an empty string.
-    - SET with an explicit value: parsed as a truthy/falsy string.
+    - SET to a recognised falsy value (false/0/no/n/off, case-insensitive): False.
+    - SET to a recognised truthy value (true/1/yes/y/on, case-insensitive): True.
+    - SET to anything else (unrecognised): True — fail-closed; a warning is logged
+      naming the bad value so operators can diagnose misconfiguration.
 
     Returns:
         True if read-only mode is enabled, False otherwise
@@ -31,7 +37,15 @@ def is_read_only_mode() -> bool:
     if not stripped:
         logger.warning("READ_ONLY_MODE is set but empty; defaulting to read-only")
         return True
-    return stripped.lower() in ("true", "1", "yes", "y", "on")
+    lower = stripped.lower()
+    if lower in _FALSY:
+        return False
+    if lower in _TRUTHY:
+        return True
+    logger.warning(
+        "READ_ONLY_MODE has unrecognized value %r; defaulting to read-only", stripped
+    )
+    return True
 
 
 def validate_safe_path(
