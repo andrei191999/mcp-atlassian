@@ -99,6 +99,8 @@ def test_unrecognized_value_is_true_with_warning(monkeypatch, caplog, value):
         result = is_read_only_mode()
     assert result is True
     assert any("unrecognized" in r.message.lower() for r in caplog.records)
+    # Spec: warning must name the bad value
+    assert any(value in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

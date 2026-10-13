@@ -18,11 +18,14 @@ def is_read_only_mode() -> bool:
     production Atlassian instances where you want to prevent accidental
     modifications.
 
-    Three-way distinction on READ_ONLY_MODE:
+    Four-way distinction on READ_ONLY_MODE:
     - UNSET (not in os.environ): False — preserves upstream default.
     - SET but empty or whitespace-only: True — fail-safe for unconfigured plugins
       that expand ``READ_ONLY_MODE=${unset_var:-}`` to an empty string.
-    - SET with an explicit value: parsed as a truthy/falsy string.
+    - SET to a recognised falsy value (false/0/no/n/off, case-insensitive): False.
+    - SET to a recognised truthy value (true/1/yes/y/on, case-insensitive): True.
+    - SET to anything else (unrecognised): True — fail-closed; a warning is logged
+      naming the bad value so operators can diagnose misconfiguration.
 
     Returns:
         True if read-only mode is enabled, False otherwise
